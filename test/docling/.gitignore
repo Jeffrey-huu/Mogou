@@ -1,0 +1,4 @@
+# All Docling fixtures, generated results, and downloaded models are private.
+*
+!.gitignore
+!test_docling_batch.py

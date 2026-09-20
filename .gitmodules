@@ -1,0 +1,4 @@
+[submodule "docling"]
+	path = submodules/docling
+	url = git@github.com:docling-project/docling.git
+	branch = main
