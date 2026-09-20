@@ -6,10 +6,11 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
-TEST_ROOT = Path(__file__).parent
+TEST_ROOT = Path(__file__).resolve().parent
 INPUT_DIR = TEST_ROOT / "inputs"
 OUTPUT_DIR = TEST_ROOT / "outputs"
 REPORT_PATH = OUTPUT_DIR / "batch-report.json"
@@ -18,11 +19,16 @@ NON_DOCUMENT_SUFFIXES = {".py"}
 # Keep every model cache local to this private test suite.
 PRIVATE_CACHE = TEST_ROOT / ".cache"
 PRIVATE_HOME = PRIVATE_CACHE / "home"
+PRIVATE_TEMP = PRIVATE_CACHE / "tmp"
+PRIVATE_TEMP.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("DOCLING_CACHE_DIR", str(PRIVATE_CACHE / "docling"))
 os.environ.setdefault("HF_HOME", str(PRIVATE_CACHE / "huggingface"))
 os.environ.setdefault("XDG_CACHE_HOME", str(PRIVATE_CACHE / "xdg"))
 os.environ.setdefault("HOME", str(PRIVATE_HOME))
 os.environ.setdefault("USERPROFILE", str(PRIVATE_HOME))
+os.environ["TEMP"] = str(PRIVATE_TEMP)
+os.environ["TMP"] = str(PRIVATE_TEMP)
+tempfile.tempdir = str(PRIVATE_TEMP)
 
 # Docling delegates legacy .xls conversion to LibreOffice on Windows.
 libreoffice_dir = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "LibreOffice" / "program"

@@ -18,7 +18,7 @@ Docling 是 Mogou 资料库的**导入与结构化解析层**：
 
 ## 已验证的格式
 
-批量测试已本地通过以下 8 类输入：
+批量测试已本地通过以下 9 类输入：
 
 - DOCX
 - Markdown
@@ -28,8 +28,11 @@ Docling 是 Mogou 资料库的**导入与结构化解析层**：
 - PPTX
 - TXT
 - XLS（旧版 Excel）
+- XLSX
 
 批量运行器位于 `test/docling/test_docling_batch.py`。它会递归读取 `test/docling/inputs/`，按原有目录层级把每个成功项导出为 Markdown 至 `test/docling/outputs/`，并生成 JSON 汇总报告。报告仅用于本地排障；资料库实现应将失败状态、错误类别和解析器版本写入数据库。
+
+可直接运行 `test/docling/run.bat`。它会自行定位到仓库根目录，并通过 uv 使用 Docling 子模块的环境执行批量测试；因此从资源管理器双击或在任意当前目录运行都可以。
 
 ## Python 与依赖
 
@@ -42,6 +45,12 @@ uv sync --project submodules/docling --locked --extra standard --extra format-au
 uv run --project submodules/docling --extra standard --extra format-audio python test/docling/test_docling_batch.py
 ```
 
+也可以在仓库根目录运行：
+
+```powershell
+cmd /c test\docling\run.bat
+```
+
 `format-audio` 会安装 Whisper、CTranslate2、PyAV 等本地 ASR 依赖。首次处理 PDF、图片或音频时，相关模型可能需要下载；模型完整缓存后可离线复用。
 
 ## 格式特有的适配
@@ -50,7 +59,7 @@ uv run --project submodules/docling --extra standard --extra format-audio python
 | --- | --- | --- | --- |
 | PDF / PNG | 文档理解 + OCR / 布局模型 | 本地 Docling/Hugging Face 模型缓存 | 保存页码、标题层级、表格与来源位置，供检索引用。 |
 | DOCX / PPTX / TXT / Markdown | 原生文档后端 | `standard` | 保留文件路径、修改时间、章节/幻灯片层级。 |
-| XLS | Office 后端 | Windows 上安装 LibreOffice | 将工作表、单元格范围等来源信息写入元数据；旧版格式转换可能更慢。 |
+| XLS / XLSX | Office 后端 | Windows 上仅 XLS 需要 LibreOffice | XLSX 已验证；旧版 XLS 会先转换为现代格式，可能更慢。将工作表、单元格范围等来源信息写入元数据。 |
 | MP3 | ASR 管线 | `format-audio` 与 Whisper 模型 | 保存时间戳、说话人/片段信息（后续可扩展），不要只保存纯文本。 |
 
 LibreOffice 已安装，用于本地旧版 `.xls` 转换。产品安装包中应将它视为可选的 Office 兼容组件，而不是把它与核心编辑器强绑定。
@@ -70,7 +79,11 @@ HF_HOME
 XDG_CACHE_HOME
 HOME
 USERPROFILE
+TEMP
+TMP
 ```
+
+在 Windows 上，Office 转换需要可写的绝对临时路径。批量脚本会将测试根目录解析为绝对路径，并将临时目录放在 `test/docling/.cache/tmp`，避免系统临时目录权限或相对路径导致 LibreOffice 转换失败。
 
 正式产品应采用同样的原则，但把位置替换为每个用户的 Mogou 应用数据目录，例如：
 
