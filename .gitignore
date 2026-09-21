@@ -207,6 +207,7 @@ tempCodeRunnerFile.py
 
 # Local development notes
 devlog/
+.cursor/
 
 # Ruff stuff:
 .ruff_cache/
