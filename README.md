@@ -1,6 +1,6 @@
 # 墨构 / Mogou
 
-一个 local-first 的 PySide6 小说编辑器原型。基础客户端不依赖网络、Docling 或本地模型。
+一个 local-first 的 PySide6 沉浸式小说编辑器。基础客户端不依赖网络、Docling 或本地模型。
 
 ## 开发
 
@@ -10,4 +10,4 @@ uv run mogou
 uv run pytest
 ```
 
-文档以 UTF-8 Markdown 文件保存；右侧 Echo 对话仅保存在当前运行期。
+以工作区文件夹保存：正文为 `manuscript.html`，本地元数据在 `.mogou/workspace.json`。可导入或导出 UTF-8 Markdown 与 TXT。

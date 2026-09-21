@@ -1,79 +1,70 @@
 from pathlib import Path
 
-from mogou.controllers.chat import ChatController
-from mogou.controllers.document import DocumentController
-from mogou.models.chat import ChatModel
+from mogou.controllers.document import DocumentController, writing_units
 from mogou.models.document import DocumentModel
-from mogou.services.chat import EchoChatService
+from mogou.services.export import html_to_markdown, html_to_text
 
 
 class FakeDocumentView:
-    def __init__(self, text: str = "") -> None:
-        self.text = text
+    def __init__(self, html: str = "") -> None:
+        self.html = html
+        self.new_path: Path | None = None
         self.open_path: Path | None = None
-        self.save_path: Path | None = None
-        self.discard = True
+        self.import_path: Path | None = None
+        self.export_path: Path | None = None
+        self.goal: int | None = None
         self.title: tuple[str, bool] | None = None
+        self.stats: tuple[int, int, int, int] | None = None
+        self.save_state = ""
         self.errors: list[tuple[str, str]] = []
+        self.infos: list[tuple[str, str]] = []
 
-    def editor_text(self) -> str: return self.text
-    def set_editor_text(self, text: str) -> None: self.text = text
+    def editor_html(self) -> str: return self.html
+    def set_editor_html(self, html: str) -> None: self.html = html
     def update_document_title(self, name: str, is_dirty: bool) -> None: self.title = (name, is_dirty)
-    def choose_open_path(self) -> Path | None: return self.open_path
-    def choose_save_path(self, suggested_name: str) -> Path | None: return self.save_path
-    def confirm_discard_changes(self, name: str) -> bool: return self.discard
+    def update_statistics(self, today: int, goal: int, session_delta: int, seconds: int) -> None: self.stats = (today, goal, session_delta, seconds)
+    def update_save_state(self, state: str) -> None: self.save_state = state
+    def choose_new_workspace_path(self) -> Path | None: return self.new_path
+    def choose_open_workspace_path(self) -> Path | None: return self.open_path
+    def choose_import_path(self) -> Path | None: return self.import_path
+    def choose_export_path(self, suffix: str) -> Path | None: return self.export_path
+    def ask_daily_goal(self, current: int) -> int | None: return self.goal
     def show_error(self, title: str, message: str) -> None: self.errors.append((title, message))
+    def show_info(self, title: str, message: str) -> None: self.infos.append((title, message))
 
 
-class FakeChatView:
-    def __init__(self, text: str) -> None:
-        self.text = text
-        self.messages: list[tuple[str, str]] = []
-
-    def chat_input_text(self) -> str: return self.text
-    def clear_chat_input(self) -> None: self.text = ""
-    def append_chat_message(self, role: str, content: str) -> None: self.messages.append((role, content))
-
-
-def test_document_controller_saves_unnamed_document(tmp_path: Path) -> None:
-    view = FakeDocumentView("# 第一章\n正文")
-    view.save_path = tmp_path / "novel.md"
-    controller = DocumentController(DocumentModel(), view)
-
-    assert controller.save_document()
-    assert view.save_path.read_text(encoding="utf-8") == "# 第一章\n正文"
-    assert controller.model.path == view.save_path
-
-
-def test_document_controller_open_replaces_editor_text(tmp_path: Path) -> None:
-    path = tmp_path / "opened.md"
-    path.write_text("已打开内容", encoding="utf-8")
+def test_controller_creates_workspace_and_autosaves(tmp_path: Path, qtbot) -> None:
     view = FakeDocumentView()
-    view.open_path = path
+    view.new_path = tmp_path / "novel"
     controller = DocumentController(DocumentModel(), view)
 
-    assert controller.open_document()
-    assert view.text == "已打开内容"
-    assert not controller.model.is_dirty
+    assert controller.new_workspace()
+    view.html = "<p>第一段</p>"
+    controller.on_text_changed()
+    qtbot.wait(DocumentController.AUTOSAVE_DELAY_MS + 100)
+    assert (view.new_path / "manuscript.html").read_text(encoding="utf-8") == view.html
+    assert view.save_state == "已保存"
 
 
-def test_new_document_respects_discard_decision() -> None:
-    view = FakeDocumentView("草稿")
-    view.discard = False
-    controller = DocumentController(DocumentModel(content="草稿", is_dirty=True), view)
-    assert not controller.new_document()
-    assert controller.model.content == "草稿"
+def test_controller_imports_markdown_and_exports(tmp_path: Path, qapp) -> None:
+    source = tmp_path / "source.md"
+    source.write_text("# 标题\n\n**重要**", encoding="utf-8")
+    view = FakeDocumentView()
+    view.import_path = source
+    view.new_path = tmp_path / "imported"
+    controller = DocumentController(DocumentModel(), view)
+
+    assert controller.import_document()
+    assert "标题" in html_to_text(view.html)
+    view.export_path = tmp_path / "export.md"
+    assert controller.export_markdown()
+    assert "标题" in view.export_path.read_text(encoding="utf-8")
+    assert view.infos
 
 
-def test_chat_controller_rejects_blank_message() -> None:
-    view = FakeChatView("  ")
-    controller = ChatController(ChatModel(), EchoChatService(), view)
-    assert not controller.send_message()
-    assert view.messages == []
-
-
-def test_chat_controller_adds_user_and_echo_messages() -> None:
-    view = FakeChatView("你好")
-    controller = ChatController(ChatModel(), EchoChatService(), view)
-    assert controller.send_message()
-    assert view.messages == [("user", "你好"), ("assistant", "Echo: 你好")]
+def test_export_helpers_preserve_semantic_text() -> None:
+    html = "<h1>标题</h1><p><b>重要</b>内容</p><ul><li>一项</li></ul>"
+    markdown = html_to_markdown(html)
+    assert "标题" in markdown and "重要" in markdown and "一项" in markdown
+    assert html_to_text(html) == "标题\n重要内容\n一项"
+    assert writing_units("<p>你 好\n世界</p>") == 4
